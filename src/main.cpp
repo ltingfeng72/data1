@@ -94,15 +94,21 @@ bool initODBC() {
 /**
  * 连接到数据库
  * 请根据实际情况修改DSN、用户名和密码
+ * 
+ * 安全警告：生产环境不应硬编码数据库凭据
+ * Security Warning: Do not hardcode credentials in production
+ * 建议：从环境变量或配置文件读取凭据
+ * Recommendation: Load credentials from environment variables or config files
  */
 bool connectDatabase() {
     SQLRETURN ret;
     
     // 方法1：使用DSN连接（推荐）
     // DSN需要在ODBC数据源管理器中预先配置
+    // 安全提示：这些凭据应从环境变量或安全配置文件加载
     const char* dsn = "LibraryDB";
     const char* user = "root";
-    const char* password = "password";
+    const char* password = "password";  // 生产环境应使用环境变量：getenv("DB_PASSWORD")
     
     ret = SQLConnect(hDbc, 
                      (SQLCHAR*)dsn, SQL_NTS,
@@ -184,8 +190,22 @@ void cleanupODBC() {
 
 /**
  * 用户登录认证
+ * 
+ * 安全警告：本函数仅供学习演示使用
+ * WARNING: This function is for educational purposes only
+ * 
+ * 生产环境必须解决以下安全问题：
+ * For production use, you MUST address these security issues:
+ * 1. SQL注入风险：使用参数化查询（SQLPrepare + SQLBindParameter）
+ *    SQL Injection: Use parameterized queries (SQLPrepare + SQLBindParameter)
+ * 2. 密码明文存储：使用bcrypt、SHA-256等加密算法
+ *    Plain-text passwords: Use bcrypt, SHA-256, or other encryption
+ * 3. 输入验证：检查用户名和密码格式
+ *    Input validation: Check username and password format
  */
 bool login(const string& username, const string& password) {
+    // 安全提示：此处存在SQL注入风险，生产环境应使用参数化查询
+    // Security Note: SQL injection risk - use parameterized queries in production
     char sql[256];
     sprintf(sql, "SELECT userId, role FROM users WHERE username='%s' AND password='%s'", 
             username.c_str(), password.c_str());
@@ -247,6 +267,10 @@ bool checkPermission(UserRole requiredRole) {
 
 /**
  * 添加图书
+ * 
+ * 安全警告：本函数仅供学习演示使用
+ * 生产环境应使用参数化查询防止SQL注入
+ * Use parameterized queries in production to prevent SQL injection
  */
 void addBook() {
     if (!checkPermission(ROLE_ADMIN)) return;
@@ -267,6 +291,7 @@ void addBook() {
     cout << "房间ID: ";
     cin >> roomId;
     
+    // 安全提示：存在SQL注入风险，生产环境应使用参数化查询
     char sql[512];
     sprintf(sql, "INSERT INTO books (bookName, publicationDate, publisher, bookrackId, roomId) VALUES ('%s', '%s', '%s', %d, %d)",
             bookName.c_str(), pubDate.c_str(), publisher.c_str(), bookrackId, roomId);
@@ -299,6 +324,9 @@ void deleteBook() {
 
 /**
  * 修改图书信息
+ * 
+ * 安全警告：生产环境应使用参数化查询
+ * Use parameterized queries in production
  */
 void updateBook() {
     if (!checkPermission(ROLE_ADMIN)) return;
@@ -315,6 +343,7 @@ void updateBook() {
     cout << "新出版社: ";
     getline(cin, publisher);
     
+    // 安全提示：存在SQL注入风险，生产环境应使用参数化查询
     char sql[512];
     sprintf(sql, "UPDATE books SET bookName='%s', publisher='%s' WHERE bookId=%d",
             bookName.c_str(), publisher.c_str(), bookId);
@@ -383,6 +412,9 @@ void returnBook() {
 
 /**
  * 查询图书信息
+ * 
+ * 安全警告：生产环境应使用参数化查询
+ * Use parameterized queries in production
  */
 void queryBooks() {
     if (!checkPermission(ROLE_READER)) return;
@@ -393,6 +425,7 @@ void queryBooks() {
     cin.ignore();
     getline(cin, keyword);
     
+    // 安全提示：存在SQL注入风险，生产环境应使用参数化查询
     char sql[512];
     if (keyword.empty()) {
         sprintf(sql, "SELECT bookId, bookName, publisher, publicationDate, bookrackId, roomId FROM books");
@@ -408,14 +441,14 @@ void queryBooks() {
     
     SQLINTEGER bookId, bookrackId, roomId;
     SQLCHAR bookName[256], publisher[256], pubDate[64];
-    SQLLEN indicator;
+    SQLLEN ind1, ind2, ind3, ind4, ind5, ind6;  // 为每列使用独立的指示器
     
-    SQLBindCol(hStmt, 1, SQL_C_LONG, &bookId, 0, &indicator);
-    SQLBindCol(hStmt, 2, SQL_C_CHAR, bookName, sizeof(bookName), &indicator);
-    SQLBindCol(hStmt, 3, SQL_C_CHAR, publisher, sizeof(publisher), &indicator);
-    SQLBindCol(hStmt, 4, SQL_C_CHAR, pubDate, sizeof(pubDate), &indicator);
-    SQLBindCol(hStmt, 5, SQL_C_LONG, &bookrackId, 0, &indicator);
-    SQLBindCol(hStmt, 6, SQL_C_LONG, &roomId, 0, &indicator);
+    SQLBindCol(hStmt, 1, SQL_C_LONG, &bookId, 0, &ind1);
+    SQLBindCol(hStmt, 2, SQL_C_CHAR, bookName, sizeof(bookName), &ind2);
+    SQLBindCol(hStmt, 3, SQL_C_CHAR, publisher, sizeof(publisher), &ind3);
+    SQLBindCol(hStmt, 4, SQL_C_CHAR, pubDate, sizeof(pubDate), &ind4);
+    SQLBindCol(hStmt, 5, SQL_C_LONG, &bookrackId, 0, &ind5);
+    SQLBindCol(hStmt, 6, SQL_C_LONG, &roomId, 0, &ind6);
     
     cout << "\n图书列表：" << endl;
     cout << "------------------------------------------------------------" << endl;
@@ -451,12 +484,12 @@ void queryBorrowRecords() {
     
     SQLINTEGER bookId;
     SQLCHAR bookName[256], borrowDate[64], returnDate[64];
-    SQLLEN indicator;
+    SQLLEN ind1, ind2, ind3, ind4;  // 为每列使用独立的指示器
     
-    SQLBindCol(hStmt, 1, SQL_C_LONG, &bookId, 0, &indicator);
-    SQLBindCol(hStmt, 2, SQL_C_CHAR, bookName, sizeof(bookName), &indicator);
-    SQLBindCol(hStmt, 3, SQL_C_CHAR, borrowDate, sizeof(borrowDate), &indicator);
-    SQLBindCol(hStmt, 4, SQL_C_CHAR, returnDate, sizeof(returnDate), &indicator);
+    SQLBindCol(hStmt, 1, SQL_C_LONG, &bookId, 0, &ind1);
+    SQLBindCol(hStmt, 2, SQL_C_CHAR, bookName, sizeof(bookName), &ind2);
+    SQLBindCol(hStmt, 3, SQL_C_CHAR, borrowDate, sizeof(borrowDate), &ind3);
+    SQLBindCol(hStmt, 4, SQL_C_CHAR, returnDate, sizeof(returnDate), &ind4);
     
     cout << "\n借阅记录：" << endl;
     cout << "------------------------------------------------------------" << endl;
@@ -465,7 +498,7 @@ void queryBorrowRecords() {
     while ((ret = SQLFetch(hStmt)) == SQL_SUCCESS) {
         cout << "图书ID: " << bookId << " | 书名: " << bookName 
              << " | 借书日期: " << borrowDate;
-        if (indicator == SQL_NULL_DATA) {
+        if (ind4 == SQL_NULL_DATA) {  // 检查returnDate列的指示器
             cout << " | 状态: 未归还" << endl;
         } else {
             cout << " | 还书日期: " << returnDate << endl;
